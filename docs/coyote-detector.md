@@ -20,8 +20,16 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Edit `.env` with the camera's current address and password. The file is ignored
-by Git. Install and run with [uv](https://docs.astral.sh/uv/):
+Edit `.env` with the camera's current address. The file is ignored by Git. On
+macOS, store the camera password in the login Keychain; the final `-w` option
+prompts without putting the password in shell history:
+
+```sh
+security add-generic-password -U \
+  -a admin -s eversecu-coyote-camera -w
+```
+
+Install and run with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv sync

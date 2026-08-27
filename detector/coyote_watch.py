@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import time
 from contextlib import suppress
 from dataclasses import dataclass
@@ -43,15 +44,14 @@ class Settings:
     @classmethod
     def from_environment(cls) -> Settings:
         host = os.environ.get("CAMERA_HOST", "").strip()
-        password = os.environ.get("CAMERA_PASSWORD", "")
+        username = os.environ.get("CAMERA_USERNAME", "admin")
+        password = load_camera_password(username)
         if not host:
             raise ValueError("CAMERA_HOST is required")
-        if not password:
-            raise ValueError("CAMERA_PASSWORD is required")
 
         settings = cls(
             host=host,
-            username=os.environ.get("CAMERA_USERNAME", "admin"),
+            username=username,
             password=password,
             camera_name=os.environ.get("CAMERA_NAME", "yard"),
             interval_seconds=float(os.environ.get("DETECTION_INTERVAL_SECONDS", "1.0")),
@@ -82,6 +82,41 @@ class Detection:
     label: str
     confidence: float
     box: tuple[int, int, int, int]
+
+
+def load_camera_password(username: str) -> str:
+    password = os.environ.get("CAMERA_PASSWORD", "")
+    if password:
+        return password
+
+    service = os.environ.get(
+        "CAMERA_KEYCHAIN_SERVICE", "eversecu-coyote-camera"
+    ).strip()
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/security",
+                "find-generic-password",
+                "-w",
+                "-a",
+                username,
+                "-s",
+                service,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError("could not read the camera password from Keychain") from error
+    password = result.stdout.rstrip("\n")
+    if result.returncode != 0 or not password:
+        raise ValueError(
+            "camera password is missing; set CAMERA_PASSWORD or add the "
+            f"Keychain item {service!r} for account {username!r}"
+        )
+    return password
 
 
 class CanineDetector:
