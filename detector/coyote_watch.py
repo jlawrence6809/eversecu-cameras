@@ -244,8 +244,6 @@ def run(settings: Settings, once: bool) -> int:
     last_inference = 0.0
     last_event = float("-inf")
     last_prune = float("-inf")
-    failures = 0
-
     while not stopping:
         LOGGER.info("connecting to camera %s", settings.camera_name)
         capture = open_camera(settings)
@@ -259,12 +257,8 @@ def run(settings: Settings, once: bool) -> int:
         while not stopping:
             ok, frame = capture.read()
             if not ok:
-                failures += 1
-                if failures >= 10:
-                    LOGGER.warning("camera stream lost; reconnecting")
-                    break
-                continue
-            failures = 0
+                LOGGER.warning("camera stream lost; reconnecting")
+                break
 
             now = time.monotonic()
             if now - last_inference < settings.interval_seconds:
