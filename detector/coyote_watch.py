@@ -11,7 +11,7 @@ import signal
 import subprocess
 import time
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -32,7 +32,7 @@ MODEL_NAME = "ssdlite320_mobilenet_v3_large_coco"
 class Settings:
     host: str
     username: str
-    password: str
+    password: str = field(repr=False)
     camera_name: str
     interval_seconds: float
     confidence: float
