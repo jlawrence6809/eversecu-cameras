@@ -7,6 +7,7 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import signal
 import subprocess
 import time
@@ -17,6 +18,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import cv2
+import numpy as np
 import torch
 from dotenv import load_dotenv
 from torchvision.models.detection import (
@@ -26,6 +28,9 @@ from torchvision.models.detection import (
 
 LOGGER = logging.getLogger("coyote-watch")
 MODEL_NAME = "ssdlite320_mobilenet_v3_large_coco"
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 360
+FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 3
 
 
 @dataclass(frozen=True)
@@ -153,6 +158,66 @@ class CanineDetector:
         return detections
 
 
+class FFmpegCamera:
+    """Decode the camera substream through the system FFmpeg process."""
+
+    def __init__(self, url: str) -> None:
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            raise OSError("FFmpeg is required but was not found on PATH")
+        command = [
+            ffmpeg,
+            "-nostdin",
+            "-loglevel",
+            "quiet",
+            "-rtsp_transport",
+            "tcp",
+            "-i",
+            url,
+            "-map",
+            "0:v:0",
+            "-an",
+            "-vf",
+            "fps=5",
+            "-pix_fmt",
+            "bgr24",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+        ]
+        self.process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def is_opened(self) -> bool:
+        return self.process.poll() is None and self.process.stdout is not None
+
+    def read(self) -> tuple[bool, cv2.typing.MatLike | None]:
+        if self.process.stdout is None:
+            return False, None
+        data = bytearray()
+        while len(data) < FRAME_BYTES:
+            chunk = self.process.stdout.read(FRAME_BYTES - len(data))
+            if not chunk:
+                return False, None
+            data.extend(chunk)
+        frame = np.frombuffer(data, dtype=np.uint8).reshape(
+            (FRAME_HEIGHT, FRAME_WIDTH, 3)
+        )
+        return True, frame
+
+    def release(self) -> None:
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+
+
 def annotate(frame: cv2.typing.MatLike, detections: list[Detection]) -> None:
     for detection in detections:
         x1, y1, x2, y2 = detection.box
@@ -223,11 +288,8 @@ def prune_events(output_dir: Path, retention_days: int) -> int:
     return removed
 
 
-def open_camera(settings: Settings) -> cv2.VideoCapture:
-    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
-    capture = cv2.VideoCapture(settings.rtsp_url(), cv2.CAP_FFMPEG)
-    capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    return capture
+def open_camera(settings: Settings) -> FFmpegCamera:
+    return FFmpegCamera(settings.rtsp_url())
 
 
 def run(settings: Settings, once: bool) -> int:
@@ -247,7 +309,7 @@ def run(settings: Settings, once: bool) -> int:
     while not stopping:
         LOGGER.info("connecting to camera %s", settings.camera_name)
         capture = open_camera(settings)
-        if not capture.isOpened():
+        if not capture.is_opened():
             LOGGER.error("camera connection failed; retrying in 5 seconds")
             capture.release()
             time.sleep(5)

@@ -88,6 +88,8 @@ name = "eversecu-canine-detector"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "opencv-python-headless" },
     { name = "python-dotenv" },
     { name = "torch" },
@@ -96,6 +98,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2.2,<3" },
     { name = "opencv-python-headless", specifier = ">=4.11,<5" },
     { name = "python-dotenv", specifier = ">=1.1,<2" },
     { name = "torch", specifier = ">=2.8,<3" },

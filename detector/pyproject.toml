@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Local canine candidate detector for EVERSECU/O-KAM RTSP cameras"
 requires-python = ">=3.11"
 dependencies = [
+  "numpy>=2.2,<3",
   "opencv-python-headless>=4.11,<5",
   "python-dotenv>=1.1,<2",
   "torch>=2.8,<3",
