@@ -317,13 +317,18 @@ def run(settings: Settings, once: bool) -> int:
     last_inference = 0.0
     last_event = float("-inf")
     last_prune = float("-inf")
+    reconnect_delay = 2.0
     while not stopping:
         LOGGER.info("connecting to camera %s", settings.camera_name)
         capture = open_camera(settings)
         if not capture.is_opened():
-            LOGGER.error("camera connection failed; retrying in 5 seconds")
+            LOGGER.error(
+                "camera connection failed; retrying in %.0f seconds",
+                reconnect_delay,
+            )
             capture.release()
-            time.sleep(5)
+            time.sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, 60)
             continue
 
         LOGGER.info("camera stream connected")
@@ -332,6 +337,7 @@ def run(settings: Settings, once: bool) -> int:
             if not ok:
                 LOGGER.warning("camera stream lost; reconnecting")
                 break
+            reconnect_delay = 2.0
 
             now = time.monotonic()
             if now - last_inference < settings.interval_seconds:
@@ -359,7 +365,9 @@ def run(settings: Settings, once: bool) -> int:
 
         capture.release()
         if not stopping:
-            time.sleep(2)
+            LOGGER.info("retrying camera in %.0f seconds", reconnect_delay)
+            time.sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, 60)
 
     return 0
 
