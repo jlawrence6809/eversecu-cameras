@@ -54,8 +54,8 @@ def main() -> int:
     domain = f"gui/{os.getuid()}"
     service = f"{domain}/{LABEL}"
     run("launchctl", "bootout", domain, str(plist_path), check=False)
-    run("launchctl", "bootstrap", domain, str(plist_path))
     run("launchctl", "enable", service)
+    run("launchctl", "bootstrap", domain, str(plist_path))
     run("launchctl", "kickstart", "-k", service)
     print(f"installed and started {LABEL}")
     print(f"logs: {log_dir}")
