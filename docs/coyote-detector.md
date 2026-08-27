@@ -41,6 +41,23 @@ The first run downloads the approximately 14 MB SSDLite weights. Candidate
 frames and JSON metadata are written under `detector/events/`, grouped by day,
 and are ignored by Git. The default retention period is 14 days.
 
+## Run continuously on macOS
+
+After the one-frame test succeeds, install the per-user launch agent:
+
+```sh
+uv run python install_macos_service.py
+```
+
+The agent starts immediately, restarts after failures, and loads again whenever
+the user logs in. Logs are written under
+`~/Library/Logs/eversecu-coyote-detector/`. Inspect its current state with:
+
+```sh
+launchctl print gui/$(id -u)/com.jlawrence6809.eversecu-coyote-detector
+tail -f ~/Library/Logs/eversecu-coyote-detector/stderr.log
+```
+
 ## Initial operating settings
 
 - Infer on one frame per second from the 640x360 substream.
