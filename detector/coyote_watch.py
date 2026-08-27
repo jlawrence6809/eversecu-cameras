@@ -7,6 +7,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -169,7 +170,7 @@ class FFmpegCamera:
             ffmpeg,
             "-nostdin",
             "-loglevel",
-            "quiet",
+            "error",
             "-rtsp_transport",
             "tcp",
             "-i",
@@ -188,7 +189,7 @@ class FFmpegCamera:
         self.process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
 
     def is_opened(self) -> bool:
@@ -201,12 +202,22 @@ class FFmpegCamera:
         while len(data) < FRAME_BYTES:
             chunk = self.process.stdout.read(FRAME_BYTES - len(data))
             if not chunk:
+                self._log_failure()
                 return False, None
             data.extend(chunk)
         frame = np.frombuffer(data, dtype=np.uint8).reshape(
             (FRAME_HEIGHT, FRAME_WIDTH, 3)
         )
         return True, frame
+
+    def _log_failure(self) -> None:
+        if self.process.stderr is None:
+            return
+        detail = self.process.stderr.read().decode("utf-8", errors="replace").strip()
+        if not detail:
+            return
+        detail = re.sub(r"rtsp://\S+", "rtsp://[redacted]", detail)
+        LOGGER.error("FFmpeg decoder stopped: %s", " ".join(detail.splitlines()))
 
     def release(self) -> None:
         if self.process.poll() is None:
