@@ -45,7 +45,10 @@ def main() -> int:
         "ThrottleInterval": 10,
         "StandardOutPath": str(log_dir / "stdout.log"),
         "StandardErrorPath": str(log_dir / "stderr.log"),
-        "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
+        "EnvironmentVariables": {
+            "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+            "PYTHONUNBUFFERED": "1",
+        },
     }
     with plist_path.open("wb") as plist_file:
         plistlib.dump(configuration, plist_file, sort_keys=True)
