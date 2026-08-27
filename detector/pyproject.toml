@@ -1,0 +1,18 @@
+[project]
+name = "eversecu-canine-detector"
+version = "0.1.0"
+description = "Local canine candidate detector for EVERSECU/O-KAM RTSP cameras"
+requires-python = ">=3.11"
+dependencies = [
+  "opencv-python-headless>=4.11,<5",
+  "python-dotenv>=1.1,<2",
+  "torch>=2.8,<3",
+  "torchvision>=0.23,<1",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

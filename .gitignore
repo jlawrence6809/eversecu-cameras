@@ -3,5 +3,8 @@ __pycache__/
 .DS_Store
 .env
 .env.*
+!detector/.env.example
 samples/*.wav
 captures/
+detector/events/
+detector/.venv/

@@ -146,6 +146,14 @@ Packet captures and recordings are deliberately excluded from this
 repository because they can contain credentials, identifiers, private audio,
 or video.
 
+## Coyote/canine detector
+
+The optional [local coyote detector](docs/coyote-detector.md) samples the RTSP
+substream and saves evidence frames for canine candidates. Its deliberately
+conservative first stage treats the general-purpose model's `dog` class as a
+possible dog, coyote, or similar animal, providing useful alerts and a local
+dataset without overstating species-level accuracy.
+
 ## License
 
 The original code and documentation are released under the [MIT License](LICENSE).
