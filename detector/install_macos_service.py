@@ -43,7 +43,6 @@ def main() -> int:
         "RunAtLoad": True,
         "KeepAlive": True,
         "ThrottleInterval": 10,
-        "ProcessType": "Background",
         "StandardOutPath": str(log_dir / "stdout.log"),
         "StandardErrorPath": str(log_dir / "stderr.log"),
         "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
