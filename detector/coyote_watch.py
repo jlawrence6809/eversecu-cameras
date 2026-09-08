@@ -27,6 +27,8 @@ from torchvision.models.detection import (
     ssdlite320_mobilenet_v3_large,
 )
 
+from connection_health import HealthReporter
+
 LOGGER = logging.getLogger("coyote-watch")
 MODEL_NAME = "ssdlite320_mobilenet_v3_large_coco"
 FRAME_WIDTH = 640
@@ -46,6 +48,9 @@ class Settings:
     retention_days: int
     output_dir: Path
     stream: str
+    health_file: Path
+    reconnect_initial_seconds: float
+    reconnect_max_seconds: float
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -66,6 +71,13 @@ class Settings:
             retention_days=int(os.environ.get("EVENT_RETENTION_DAYS", "14")),
             output_dir=Path(os.environ.get("EVENT_OUTPUT_DIR", "events")).expanduser(),
             stream=os.environ.get("CAMERA_STREAM", "av0_1"),
+            health_file=Path(
+                os.environ.get("HEALTH_FILE", "state/health.json")
+            ).expanduser(),
+            reconnect_initial_seconds=float(
+                os.environ.get("RECONNECT_INITIAL_SECONDS", "30")
+            ),
+            reconnect_max_seconds=float(os.environ.get("RECONNECT_MAX_SECONDS", "300")),
         )
         if settings.interval_seconds <= 0:
             raise ValueError("DETECTION_INTERVAL_SECONDS must be positive")
@@ -75,6 +87,12 @@ class Settings:
             raise ValueError("EVENT_COOLDOWN_SECONDS cannot be negative")
         if settings.retention_days < 1:
             raise ValueError("EVENT_RETENTION_DAYS must be at least 1")
+        if settings.reconnect_initial_seconds <= 0:
+            raise ValueError("RECONNECT_INITIAL_SECONDS must be positive")
+        if settings.reconnect_max_seconds < settings.reconnect_initial_seconds:
+            raise ValueError(
+                "RECONNECT_MAX_SECONDS cannot be less than RECONNECT_INITIAL_SECONDS"
+            )
         return settings
 
     def rtsp_url(self) -> str:
@@ -305,6 +323,8 @@ def open_camera(settings: Settings) -> FFmpegCamera:
 
 def run(settings: Settings, once: bool) -> int:
     detector = CanineDetector(settings.confidence)
+    health = HealthReporter(settings.health_file, settings.camera_name, settings.host)
+    health.starting()
     stopping = False
 
     def stop(_signum: int, _frame: object) -> None:
@@ -317,27 +337,34 @@ def run(settings: Settings, once: bool) -> int:
     last_inference = 0.0
     last_event = float("-inf")
     last_prune = float("-inf")
-    reconnect_delay = 2.0
+    reconnect_delay = settings.reconnect_initial_seconds
     while not stopping:
         LOGGER.info("connecting to camera %s", settings.camera_name)
+        health.connecting()
         capture = open_camera(settings)
         if not capture.is_opened():
+            health.failed()
             LOGGER.error(
                 "camera connection failed; retrying in %.0f seconds",
                 reconnect_delay,
             )
             capture.release()
             time.sleep(reconnect_delay)
-            reconnect_delay = min(reconnect_delay * 2, 60)
+            reconnect_delay = min(
+                reconnect_delay * 2,
+                settings.reconnect_max_seconds,
+            )
             continue
 
         LOGGER.info("camera stream connected")
         while not stopping:
             ok, frame = capture.read()
             if not ok:
+                health.failed()
                 LOGGER.warning("camera stream lost; reconnecting")
                 break
-            reconnect_delay = 2.0
+            health.frame_received()
+            reconnect_delay = settings.reconnect_initial_seconds
 
             now = time.monotonic()
             if now - last_inference < settings.interval_seconds:
@@ -361,14 +388,19 @@ def run(settings: Settings, once: bool) -> int:
 
             if once:
                 capture.release()
+                health.stopped()
                 return 0
 
         capture.release()
         if not stopping:
             LOGGER.info("retrying camera in %.0f seconds", reconnect_delay)
             time.sleep(reconnect_delay)
-            reconnect_delay = min(reconnect_delay * 2, 60)
+            reconnect_delay = min(
+                reconnect_delay * 2,
+                settings.reconnect_max_seconds,
+            )
 
+    health.stopped()
     return 0
 
 

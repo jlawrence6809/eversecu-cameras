@@ -58,12 +58,40 @@ launchctl print gui/$(id -u)/com.jlawrence6809.eversecu-coyote-detector
 tail -f ~/Library/Logs/eversecu-coyote-detector/stderr.log
 ```
 
+## Connection recovery and health alerts
+
+The detector gives the camera a 30-second quiet period after a broken RTSP
+session, then doubles the delay up to five minutes if reconnection continues to
+fail. This avoids keeping the tested firmware in its non-recovering rapid-retry
+state. `state/health.json` is updated atomically while frames are decoded and
+contains no credentials.
+
+`watch_connection.py` can run independently once per minute and send a single
+XMPP DM when frames have been stale for five minutes. It suppresses repeats and
+sends one recovery DM when frames resume. On macOS, after installing and
+initializing the `agent-xmpp` CLI, install the launch agent with the exact
+destination conversation JID:
+
+```sh
+uv run python install_macos_watchdog.py \
+  --recipient c-example@xmpp.example
+```
+
+The watchdog catches a dead detector process because the health heartbeat also
+goes stale. It cannot report a total Mac, LAN, Tailscale, Prosody, or power
+failure because its XMPP client and the initial Prosody server share the same
+Mac. Delivery can trigger work only while the destination runtime and its
+supervised XMPP bridge attachment remain available; automatic wake or resume of
+a closed agent runtime is not currently provided by `agent-xmpp`.
+
 ## Initial operating settings
 
 - Infer on one frame per second from the 640x360 substream.
 - Save detections at confidence 0.35 or greater.
 - Limit evidence frames to one every 30 seconds while a canine remains visible.
 - Delete evidence after 14 days.
+- Wait 30 seconds before the first reconnect and back off to at most 5 minutes.
+- Treat a frame heartbeat older than 5 minutes as unhealthy.
 
 These values are starting points. Review false negatives before increasing the
 confidence threshold. A coyote that is small in the frame is more likely to
