@@ -67,6 +67,7 @@ class WatchConnectionTests(unittest.TestCase):
                 recipient="camera-agent@example.test",
                 agent_xmpp=root / "agent-xmpp",
                 config=root / "config.toml",
+                restart_service=None,
             )
             now = datetime(2026, 9, 7, tzinfo=UTC)
 
@@ -99,12 +100,37 @@ class WatchConnectionTests(unittest.TestCase):
                 recipient="camera-agent@example.test",
                 agent_xmpp=root / "agent-xmpp",
                 config=root / "config.toml",
+                restart_service=None,
             )
 
             run(args, now)
 
             send_dm_mock.assert_called_once()
             self.assertFalse(load_alert_active(state_file))
+
+    @patch("watch_connection.send_dm")
+    @patch("watch_connection.restart_launch_agent")
+    def test_new_failure_requests_one_service_restart(
+        self,
+        restart_mock,
+        send_dm_mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = Namespace(
+                health_file=root / "missing-health.json",
+                state_file=root / "watchdog.json",
+                stale_seconds=300,
+                recipient="camera-agent@example.test",
+                agent_xmpp=root / "agent-xmpp",
+                config=root / "config.toml",
+                restart_service="example.camera-detector",
+            )
+
+            run(args, datetime(2026, 9, 7, tzinfo=UTC))
+
+            restart_mock.assert_called_once_with("example.camera-detector")
+            self.assertIn("clean process restart", send_dm_mock.call_args.args[3])
 
 
 if __name__ == "__main__":

@@ -68,9 +68,10 @@ contains no credentials.
 
 `watch_connection.py` can run independently once per minute and send a single
 XMPP DM when frames have been stale for five minutes. It suppresses repeats and
-sends one recovery DM when frames resume. On macOS, after installing and
-initializing the `agent-xmpp` CLI, install the launch agent with the exact
-destination conversation JID:
+asks the macOS service supervisor for one clean detector restart before sending
+the alert. It sends one recovery DM when frames resume. On macOS, after
+installing the detector launch agent and initializing the `agent-xmpp` CLI,
+install the watchdog launch agent with the exact destination conversation JID:
 
 ```sh
 uv run python install_macos_watchdog.py \

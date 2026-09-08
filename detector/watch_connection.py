@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -111,6 +112,24 @@ def send_dm(
         raise RuntimeError("agent-xmpp could not deliver the camera health alert")
 
 
+def restart_launch_agent(label: str) -> None:
+    """Request one clean restart from the macOS user service supervisor."""
+    result = subprocess.run(
+        [
+            "launchctl",
+            "kickstart",
+            "-k",
+            f"gui/{os.getuid()}/{label}",
+        ],
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("launchctl could not restart the camera detector")
+
+
 def run(args: argparse.Namespace, now: datetime | None = None) -> int:
     """Evaluate health and send only failure/recovery transitions."""
     assessment = assess_health(
@@ -121,12 +140,23 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
     alert_active = load_alert_active(args.state_file)
 
     if not assessment.healthy and not alert_active:
+        restart_note = ""
+        if args.restart_service:
+            try:
+                restart_launch_agent(args.restart_service)
+                restart_note = (
+                    " The local watchdog requested one clean process restart."
+                )
+            except RuntimeError:
+                restart_note = " The local process restart failed."
+                LOGGER.exception("could not restart camera detector")
         send_dm(
             args.agent_xmpp,
             args.config,
             args.recipient,
             "Camera watchdog alert: "
-            f"{assessment.detail}. Please inspect and restore the yard-camera "
+            f"{assessment.detail}.{restart_note} "
+            "Please inspect and restore the yard-camera "
             "detector within the existing camera-operations scope.",
         )
         save_alert_state(args.state_file, True)
@@ -155,6 +185,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--recipient", required=True)
     parser.add_argument("--agent-xmpp", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument(
+        "--restart-service",
+        help="macOS launch-agent label to restart once on a new failure",
+    )
     return parser.parse_args()
 
 

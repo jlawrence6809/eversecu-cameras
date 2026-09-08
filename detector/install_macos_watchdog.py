@@ -62,6 +62,8 @@ def main() -> int:
             str(agent_xmpp),
             "--config",
             str(xmpp_config),
+            "--restart-service",
+            "com.jlawrence6809.eversecu-coyote-detector",
         ],
         "RunAtLoad": True,
         "StartInterval": 60,
