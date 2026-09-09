@@ -8,10 +8,13 @@ import json
 import logging
 import os
 import re
+import select
 import shutil
 import signal
 import subprocess
+import threading
 import time
+from collections import deque
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -209,6 +212,17 @@ class FFmpegCamera:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        self.errors = deque(maxlen=32)
+        self.error_reader = threading.Thread(target=self._drain_errors, daemon=True)
+        self.error_reader.start()
+
+    def _drain_errors(self) -> None:
+        # FFmpeg can block forever if its stderr pipe fills while we read video.
+        if self.process.stderr is not None:
+            for line in self.process.stderr:
+                self.errors.append(
+                    re.sub(rb"rtsp://\S+", b"rtsp://[redacted]", line[-4096:])
+                )
 
     def is_opened(self) -> bool:
         return self.process.poll() is None and self.process.stdout is not None
@@ -217,8 +231,18 @@ class FFmpegCamera:
         if self.process.stdout is None:
             return False, None
         data = bytearray()
+        deadline = time.monotonic() + 30
         while len(data) < FRAME_BYTES:
-            chunk = self.process.stdout.read(FRAME_BYTES - len(data))
+            remaining = deadline - time.monotonic()
+            if (
+                remaining <= 0
+                or not select.select([self.process.stdout], [], [], max(0, remaining))[
+                    0
+                ]
+            ):
+                LOGGER.warning("camera frame timed out after 30 seconds")
+                return False, None
+            chunk = os.read(self.process.stdout.fileno(), FRAME_BYTES - len(data))
             if not chunk:
                 self._log_failure()
                 return False, None
@@ -229,9 +253,7 @@ class FFmpegCamera:
         return True, frame
 
     def _log_failure(self) -> None:
-        if self.process.stderr is None:
-            return
-        detail = self.process.stderr.read().decode("utf-8", errors="replace").strip()
+        detail = b"".join(list(self.errors)).decode("utf-8", errors="replace").strip()
         if not detail:
             return
         detail = re.sub(r"rtsp://\S+", "rtsp://[redacted]", detail)
@@ -245,6 +267,11 @@ class FFmpegCamera:
             except subprocess.TimeoutExpired:
                 self.process.kill()
                 self.process.wait()
+        self.error_reader.join(timeout=1)
+        if self.process.stdout is not None:
+            self.process.stdout.close()
+        if not self.error_reader.is_alive() and self.process.stderr is not None:
+            self.process.stderr.close()
 
 
 def annotate(frame: cv2.typing.MatLike, detections: list[Detection]) -> None:
@@ -356,7 +383,7 @@ def run(settings: Settings, once: bool) -> int:
             )
             continue
 
-        LOGGER.info("camera stream connected")
+        first_frame = True
         while not stopping:
             ok, frame = capture.read()
             if not ok:
@@ -364,6 +391,9 @@ def run(settings: Settings, once: bool) -> int:
                 LOGGER.warning("camera stream lost; reconnecting")
                 break
             health.frame_received()
+            if first_frame:
+                LOGGER.info("camera stream connected; decoded first frame")
+                first_frame = False
             reconnect_delay = settings.reconnect_initial_seconds
 
             now = time.monotonic()

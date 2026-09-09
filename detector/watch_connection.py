@@ -138,16 +138,20 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
         now or datetime.now(UTC),
     )
     alert_active = load_alert_active(args.state_file)
+    restart_state = args.state_file.with_suffix(".restart.json")
 
     if not assessment.healthy and not alert_active:
         restart_note = ""
-        if args.restart_service:
+        if args.restart_service and not load_alert_active(restart_state):
+            # Persist before acting: an unavailable XMPP service must not cause
+            # a fresh restart on every subsequent notification attempt.
+            save_alert_state(restart_state, True)
             try:
                 restart_launch_agent(args.restart_service)
                 restart_note = (
                     " The local watchdog requested one clean process restart."
                 )
-            except RuntimeError:
+            except (RuntimeError, OSError, subprocess.TimeoutExpired):
                 restart_note = " The local process restart failed."
                 LOGGER.exception("could not restart camera detector")
         send_dm(
@@ -162,6 +166,7 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
         save_alert_state(args.state_file, True)
         LOGGER.warning("sent camera failure alert: %s", assessment.detail)
     elif assessment.healthy and alert_active:
+        save_alert_state(restart_state, False)
         send_dm(
             args.agent_xmpp,
             args.config,
@@ -171,6 +176,8 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
         save_alert_state(args.state_file, False)
         LOGGER.info("sent camera recovery alert")
     else:
+        if assessment.healthy:
+            save_alert_state(restart_state, False)
         save_alert_state(args.state_file, alert_active)
         LOGGER.info("camera health unchanged: %s", assessment.detail)
     return 0

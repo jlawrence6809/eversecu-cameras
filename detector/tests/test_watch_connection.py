@@ -132,6 +132,26 @@ class WatchConnectionTests(unittest.TestCase):
             restart_mock.assert_called_once_with("example.camera-detector")
             self.assertIn("clean process restart", send_dm_mock.call_args.args[3])
 
+    @patch("watch_connection.send_dm", side_effect=RuntimeError("offline"))
+    @patch("watch_connection.restart_launch_agent")
+    def test_xmpp_failure_does_not_repeat_restart(self, restart_mock, send_dm_mock):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = Namespace(
+                health_file=root / "missing-health.json",
+                state_file=root / "watchdog.json",
+                stale_seconds=300,
+                recipient="agent@example.test",
+                agent_xmpp=root / "client",
+                config=root / "config.toml",
+                restart_service="example.camera-detector",
+            )
+            for _ in range(2):
+                with self.assertRaises(RuntimeError):
+                    run(args)
+            restart_mock.assert_called_once()
+            self.assertEqual(send_dm_mock.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

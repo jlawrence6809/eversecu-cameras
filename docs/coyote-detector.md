@@ -62,8 +62,10 @@ tail -f ~/Library/Logs/eversecu-coyote-detector/stderr.log
 
 The detector gives the camera a 30-second quiet period after a broken RTSP
 session, then doubles the delay up to five minutes if reconnection continues to
-fail. This avoids keeping the tested firmware in its non-recovering rapid-retry
-state. `state/health.json` is updated atomically while frames are decoded and
+fail. This reduces connection churn; it has not been established that firmware
+rate limiting caused the original failures. FFmpeg errors are drained continuously
+to prevent pipe saturation, and each frame read has a 30-second deadline.
+`state/health.json` is updated atomically while frames are decoded and
 contains no credentials.
 
 `watch_connection.py` can run independently once per minute and send a single
