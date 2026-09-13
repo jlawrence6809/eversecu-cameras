@@ -36,8 +36,10 @@ Jeremy authorized a dedicated camera-watchdog account on the new XMPP domain,
 initially with alerts addressed only to his human account. At Jeremy's request,
 alerts now post instead to camera-alerts on the existing rooms component.
 The room is persistent, unlisted and members-only, with Jeremy as owner and
-camera-watchdog as a member. No agents have been enrolled; Jeremy can grant
-membership later. Archived room reads and synthetic failure/deduplication/
+camera-watchdog as a member. At Jeremy's request, the existing Asahi migration
+conversation was subsequently granted membership; its room archive read passed.
+This grants on-demand access, not automatic room monitoring. Jeremy can grant
+other agents membership later. Archived room reads and synthetic failure/deduplication/
 recovery posts passed; 12 unit tests pass. Existing DMs remain in their archive.
 Join camera-alerts@rooms.jlawrence6809.tail1b2a0d.ts.net in Gajim.
 The service explicitly selects --room; --recipient retains legacy DM support.
