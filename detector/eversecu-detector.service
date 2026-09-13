@@ -1,0 +1,25 @@
+[Unit]
+Description=Local yard-camera canine candidate detector
+After=network-online.target
+Wants=network-online.target
+PartOf=private-services.target
+ConditionPathIsMountPoint=/var/lib/private-services
+
+[Service]
+Type=simple
+User=jeremy
+WorkingDirectory=/home/jeremy/code/eversecu-cameras/detector
+ExecStart=/opt/eversecu/venv/bin/python coyote_watch.py --config /var/lib/private-services/camera/detector.env
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=15
+UMask=0077
+LimitCORE=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/private-services/camera
+Environment=TORCH_HOME=/home/jeremy/.cache/torch
+
+[Install]
+WantedBy=private-services.target

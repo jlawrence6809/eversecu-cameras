@@ -187,15 +187,22 @@ class FFmpegCamera:
         ffmpeg = shutil.which("ffmpeg")
         if ffmpeg is None:
             raise OSError("FFmpeg is required but was not found on PATH")
+        # Feed a concat input list through a descriptor so credentials never
+        # appear in process arguments. Credentials in URLs are percent-encoded.
+        url_read, url_write = os.pipe()
         command = [
             ffmpeg,
             "-nostdin",
             "-loglevel",
             "error",
-            "-rtsp_transport",
-            "tcp",
+            "-protocol_whitelist",
+            "file,pipe,rtsp,tcp,udp,rtp",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
             "-i",
-            url,
+            f"/dev/fd/{url_read}",
             "-map",
             "0:v:0",
             "-an",
@@ -207,11 +214,30 @@ class FFmpegCamera:
             "rawvideo",
             "pipe:1",
         ]
-        self.process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        try:
+            # URL is small; write before spawning so failures cannot leave a
+            # live child waiting for input. Reject overlong input rather than
+            # risking a full pipe.
+            if any(char in url for char in "\r\n'"):
+                raise ValueError("unsafe character in camera URL")
+            encoded_url = (
+                f"ffconcat version 1.0\nfile '{url}'\noption rtsp_transport tcp\n"
+            ).encode()
+            if len(encoded_url) > 4096:
+                raise ValueError("camera URL exceeds safe input limit")
+            os.write(url_write, encoded_url)
+            os.close(url_write)
+            url_write = -1
+            self.process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                pass_fds=(url_read,),
+            )
+        finally:
+            os.close(url_read)
+            if url_write != -1:
+                os.close(url_write)
         self.errors = deque(maxlen=32)
         self.error_reader = threading.Thread(target=self._drain_errors, daemon=True)
         self.error_reader.start()
