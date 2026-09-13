@@ -67,6 +67,8 @@ Verified: 11 unit tests including systemd restart deduplication; real XMPP
 synthetic failure/recovery delivery and suppression of duplicate failure;
 sandboxed service recovery delivery; restart helper against a harmless temporary
 systemd unit; live detector remains streaming. Synthetic tests do not interrupt
-the camera or request its restart. Jeremy's visual receipt in Gajim and a full
-vault lock/unlock with camera units remain unverified. XMPP/server loss prevents
+the camera or request its restart. Jeremy confirmed visual receipt of the original DMs in Gajim. Full vault
+lock/reboot/unlock with camera and backup units passed on 2026-09-13: remote
+access returned while the vault stayed locked, and camera streaming plus all
+timers resumed after attended unlock. XMPP/server loss prevents
 alerts until service returns; this is not independent off-host monitoring.
