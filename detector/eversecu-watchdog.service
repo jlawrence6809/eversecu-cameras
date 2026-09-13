@@ -1,0 +1,17 @@
+[Unit]
+Description=Yard-camera health alerts to Jeremy
+After=prosody.service eversecu-detector.service
+PartOf=private-services.target
+ConditionPathIsMountPoint=/var/lib/private-services
+
+[Service]
+Type=oneshot
+ExecStart=/opt/eversecu/venv/bin/python /opt/eversecu/watch_connection.py --health-file /var/lib/private-services/camera/state/health.json --state-file /var/lib/private-services/camera/state/alerts.json --agent-xmpp /opt/eversecu/xmpp/bin/agent-xmpp --config /var/lib/private-services/camera/xmpp/config.toml --recipient jeremy@jlawrence6809.tail1b2a0d.ts.net --restart-backend systemd --restart-service eversecu-detector.service
+UMask=0077
+LimitCORE=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/private-services/camera
+TimeoutStartSec=90

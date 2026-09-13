@@ -30,6 +30,34 @@ Verified on Asahi: 10 unit tests, CPU model load, one-frame camera decode/run,
 systemd startup and streaming heartbeat. This is not a long-term soak or a
 validated coyote classifier. Existing model identifies canine candidates.
 
-Remaining: Linux watchdog restart integration, new-domain XMPP alert account
-and recipient selection, failure/recovery notification tests, and full vault
-lock/unlock with the detector included. No watchdog alert delivery is claimed.
+## Watchdog (verified 2026-09-13)
+
+Jeremy authorized a dedicated camera-watchdog account on the new XMPP domain,
+with alerts addressed only to his human account, not an agent conversation.
+The account profile and password live in camera/xmpp inside the vault. The
+agent-xmpp CLI is installed from the local migration checkout into a separate
+/opt/eversecu/xmpp virtual environment; never reuse old macOS credentials.
+
+Install watch_connection.py root-owned at /opt/eversecu/watch_connection.py and
+the eversecu-watchdog service/timer into /etc/systemd/system. Enable the timer
+under private-services.target. Its first check waits five minutes after target
+startup; subsequent checks run one minute after the preceding check completes.
+A frame older than five minutes triggers one systemd detector restart and one
+DM. Recovery sends another DM. Restart deduplication is persisted before the
+restart request, so failed XMPP delivery does not cause repeated restarts.
+
+The watchdog runs as root to request the fixed detector unit restart; code and
+Python runtimes under /opt are root-owned. Its sandbox is read-only except for
+camera vault state, hides home directories, disables privilege acquisition and
+core dumps. The detector itself still runs as jeremy. Lock helpers explicitly
+stop the watchdog timer and service before unmount; both units are also PartOf
+the vault target. Unlock requires the LONG service-vault passphrase, not the
+shorter system password or Restic password.
+
+Verified: 11 unit tests including systemd restart deduplication; real XMPP
+synthetic failure/recovery delivery and suppression of duplicate failure;
+sandboxed service recovery delivery; restart helper against a harmless temporary
+systemd unit; live detector remains streaming. Synthetic tests do not interrupt
+the camera or request its restart. Jeremy's visual receipt in Gajim and a full
+vault lock/unlock with camera units remain unverified. XMPP/server loss prevents
+alerts until service returns; this is not independent off-host monitoring.

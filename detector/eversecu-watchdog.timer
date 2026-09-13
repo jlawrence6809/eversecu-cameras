@@ -1,0 +1,13 @@
+[Unit]
+Description=Check yard-camera frame health every minute
+PartOf=private-services.target
+After=eversecu-detector.service
+ConditionPathIsMountPoint=/var/lib/private-services
+
+[Timer]
+OnActiveSec=5min
+OnUnitInactiveSec=1min
+Unit=eversecu-watchdog.service
+
+[Install]
+WantedBy=private-services.target

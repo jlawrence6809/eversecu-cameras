@@ -130,6 +130,16 @@ def restart_launch_agent(label: str) -> None:
         raise RuntimeError("launchctl could not restart the camera detector")
 
 
+def restart_system_service(unit: str) -> None:
+    """Restart only the explicitly configured systemd detector unit."""
+    result = subprocess.run(
+        ["systemctl", "restart", unit], capture_output=True, text=True,
+        timeout=30, check=False,
+    )
+    if result.returncode:
+        raise RuntimeError("systemd could not restart the camera detector")
+
+
 def run(args: argparse.Namespace, now: datetime | None = None) -> int:
     """Evaluate health and send only failure/recovery transitions."""
     assessment = assess_health(
@@ -147,7 +157,10 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
             # a fresh restart on every subsequent notification attempt.
             save_alert_state(restart_state, True)
             try:
-                restart_launch_agent(args.restart_service)
+                if getattr(args, "restart_backend", "launchctl") == "systemd":
+                    restart_system_service(args.restart_service)
+                else:
+                    restart_launch_agent(args.restart_service)
                 restart_note = (
                     " The local watchdog requested one clean process restart."
                 )
@@ -193,8 +206,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--agent-xmpp", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument(
+        "--restart-backend", choices=("launchctl", "systemd"), default="launchctl",
+    )
+    parser.add_argument(
         "--restart-service",
-        help="macOS launch-agent label to restart once on a new failure",
+        help="launch-agent label or systemd unit to restart once on a new failure",
     )
     return parser.parse_args()
 

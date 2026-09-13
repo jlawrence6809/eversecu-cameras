@@ -16,6 +16,22 @@ from watch_connection import assess_health, load_alert_active, run, save_alert_s
 class WatchConnectionTests(unittest.TestCase):
     """Exercise stale-frame assessment and alert deduplication."""
 
+    @patch("watch_connection.send_dm")
+    @patch("watch_connection.restart_system_service")
+    def test_systemd_restart_is_deduplicated(self, restart_mock, send_mock):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = Namespace(
+                health_file=root / "missing.json", state_file=root / "state.json",
+                stale_seconds=300, agent_xmpp=Path("agent-xmpp"),
+                config=root / "config.toml", recipient="human@example.test",
+                restart_service="eversecu-detector.service", restart_backend="systemd",
+            )
+            run(args)
+            run(args)
+            restart_mock.assert_called_once_with("eversecu-detector.service")
+            send_mock.assert_called_once()
+
     def test_recent_frame_is_healthy(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             now = datetime(2026, 9, 7, tzinfo=UTC)
