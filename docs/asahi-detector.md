@@ -30,6 +30,26 @@ Verified on Asahi: 10 unit tests, CPU model load, one-frame camera decode/run,
 systemd startup and streaming heartbeat. This is not a long-term soak or a
 validated coyote classifier. Existing model identifies canine candidates.
 
+## Competing health writers (2026-09-13)
+
+Room alerts at 19:22/19:32/19:42 UTC reported `last_frame_at` absent and state
+retrying. The managed detector journal contained no decoder loss/error at those
+times, only watchdog-requested restarts. A prior timed-out one-shot setup probe
+used the same health file and had repeatedly failed on unsupported FFmpeg syntax.
+A competing old probe is therefore the likely explanation, not a demonstrated
+network/camera failure; historical process ownership was not captured, so this
+is not a proven retrospective root cause. After reboot only the managed
+camera decoder remained.
+
+The CLI now takes a nonblocking advisory flock beside the configured health
+file before model initialization or any health writes. A second detector/probe
+using the same path is rejected. The lock inode is retained across exits;
+process exit releases the lock. This protects cooperating updated clients,
+not arbitrary manual writes or old binaries. Stop the service before using
+--once with the production configuration. Tests cover contention/release;
+a real concurrent --once was rejected without altering the live heartbeat.
+13 camera tests passed. Long-term streaming stability remains a soak-test item.
+
 ## Watchdog (verified 2026-09-13)
 
 Jeremy authorized a dedicated camera-watchdog account on the new XMPP domain,

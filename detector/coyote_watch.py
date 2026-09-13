@@ -30,7 +30,7 @@ from torchvision.models.detection import (
     ssdlite320_mobilenet_v3_large,
 )
 
-from connection_health import HealthReporter
+from connection_health import HealthReporter, exclusive_health_writer
 
 LOGGER = logging.getLogger("coyote-watch")
 MODEL_NAME = "ssdlite320_mobilenet_v3_large_coco"
@@ -484,7 +484,8 @@ def main() -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    return run(settings, args.once)
+    with exclusive_health_writer(settings.health_file):
+        return run(settings, args.once)
 
 
 if __name__ == "__main__":

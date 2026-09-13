@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import fcntl
+from contextlib import contextmanager
 import os
 import time
 from datetime import UTC, datetime
@@ -12,6 +14,22 @@ from pathlib import Path
 def timestamp() -> str:
     """Return the current UTC timestamp."""
     return datetime.now(UTC).isoformat()
+
+
+@contextmanager
+def exclusive_health_writer(path: Path):
+    """Prevent probes or duplicate detectors from corrupting shared health."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Keep the lock inode: unlinking it allows two independent lock owners.
+    with path.with_suffix(path.suffix + ".lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise OSError("another detector owns this health file") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 class HealthReporter:

@@ -7,11 +7,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from connection_health import HealthReporter
+from connection_health import HealthReporter, exclusive_health_writer
 
 
 class HealthReporterTests(unittest.TestCase):
     """Exercise health transitions written for the watchdog."""
+
+    def test_second_writer_rejected_and_lock_released(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "health.json"
+            with exclusive_health_writer(path):
+                with self.assertRaises(OSError):
+                    with exclusive_health_writer(path):
+                        self.fail("second writer acquired lock")
+            with exclusive_health_writer(path):
+                pass
 
     def test_failure_then_frame_records_recovery(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
