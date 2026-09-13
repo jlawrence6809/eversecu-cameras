@@ -33,7 +33,14 @@ validated coyote classifier. Existing model identifies canine candidates.
 ## Watchdog (verified 2026-09-13)
 
 Jeremy authorized a dedicated camera-watchdog account on the new XMPP domain,
-with alerts addressed only to his human account, not an agent conversation.
+initially with alerts addressed only to his human account. At Jeremy's request,
+alerts now post instead to camera-alerts on the existing rooms component.
+The room is persistent, unlisted and members-only, with Jeremy as owner and
+camera-watchdog as a member. No agents have been enrolled; Jeremy can grant
+membership later. Archived room reads and synthetic failure/deduplication/
+recovery posts passed; 12 unit tests pass. Existing DMs remain in their archive.
+Join camera-alerts@rooms.jlawrence6809.tail1b2a0d.ts.net in Gajim.
+The service explicitly selects --room; --recipient retains legacy DM support.
 The account profile and password live in camera/xmpp inside the vault. The
 agent-xmpp CLI is installed from the local migration checkout into a separate
 /opt/eversecu/xmpp virtual environment; never reuse old macOS credentials.
@@ -43,7 +50,7 @@ the eversecu-watchdog service/timer into /etc/systemd/system. Enable the timer
 under private-services.target. Its first check waits five minutes after target
 startup; subsequent checks run one minute after the preceding check completes.
 A frame older than five minutes triggers one systemd detector restart and one
-DM. Recovery sends another DM. Restart deduplication is persisted before the
+room post. Recovery sends another room post. Restart deduplication is persisted before the
 restart request, so failed XMPP delivery does not cause repeated restarts.
 
 The watchdog runs as root to request the fixed detector unit restart; code and

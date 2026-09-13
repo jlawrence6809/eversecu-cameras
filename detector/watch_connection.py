@@ -112,6 +112,19 @@ def send_dm(
         raise RuntimeError("agent-xmpp could not deliver the camera health alert")
 
 
+def send_alert(args: argparse.Namespace, message: str) -> None:
+    """Deliver to the explicitly selected room or legacy DM recipient."""
+    if not getattr(args, "room", None):
+        return send_dm(args.agent_xmpp, args.config, args.recipient, message)
+    result = subprocess.run(
+        [str(args.agent_xmpp), "--config", str(args.config),
+         "send", "--room", args.room, "--stdin"],
+        input=message, text=True, capture_output=True, timeout=45, check=False,
+    )
+    if result.returncode:
+        raise RuntimeError("agent-xmpp could not deliver the camera room alert")
+
+
 def restart_launch_agent(label: str) -> None:
     """Request one clean restart from the macOS user service supervisor."""
     result = subprocess.run(
@@ -167,10 +180,8 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
             except (RuntimeError, OSError, subprocess.TimeoutExpired):
                 restart_note = " The local process restart failed."
                 LOGGER.exception("could not restart camera detector")
-        send_dm(
-            args.agent_xmpp,
-            args.config,
-            args.recipient,
+        send_alert(
+            args,
             "Camera watchdog alert: "
             f"{assessment.detail}.{restart_note} "
             "Please inspect and restore the yard-camera "
@@ -180,10 +191,8 @@ def run(args: argparse.Namespace, now: datetime | None = None) -> int:
         LOGGER.warning("sent camera failure alert: %s", assessment.detail)
     elif assessment.healthy and alert_active:
         save_alert_state(restart_state, False)
-        send_dm(
-            args.agent_xmpp,
-            args.config,
-            args.recipient,
+        send_alert(
+            args,
             "Camera watchdog recovery: decoded yard-camera frames are current again.",
         )
         save_alert_state(args.state_file, False)
@@ -202,7 +211,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--health-file", type=Path, required=True)
     parser.add_argument("--state-file", type=Path, required=True)
     parser.add_argument("--stale-seconds", type=float, default=300)
-    parser.add_argument("--recipient", required=True)
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument("--recipient", help="legacy DM destination")
+    destination.add_argument("--room", help="shared room JID")
     parser.add_argument("--agent-xmpp", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument(

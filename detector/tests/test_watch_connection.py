@@ -32,6 +32,21 @@ class WatchConnectionTests(unittest.TestCase):
             restart_mock.assert_called_once_with("eversecu-detector.service")
             send_mock.assert_called_once()
 
+    @patch("watch_connection.subprocess.run")
+    def test_room_delivery_keeps_body_on_stdin(self, process_mock):
+        from watch_connection import send_alert
+        process_mock.return_value.returncode = 0
+        args = Namespace(agent_xmpp=Path("agent-xmpp"), config=Path("config.toml"),
+                         room="camera-alerts@rooms.example.test")
+        send_alert(args, "test alert")
+        command = process_mock.call_args.args[0]
+        self.assertEqual(command[-4:], ["send", "--room", args.room, "--stdin"])
+        self.assertNotIn("test alert", command)
+        self.assertEqual(process_mock.call_args.kwargs["input"], "test alert")
+        process_mock.return_value.returncode = 1
+        with self.assertRaises(RuntimeError):
+            send_alert(args, "test alert")
+
     def test_recent_frame_is_healthy(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             now = datetime(2026, 9, 7, tzinfo=UTC)
